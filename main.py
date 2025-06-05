@@ -2,24 +2,18 @@ import os
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
+from filesystem import VirtualFileSystem
+from terminal import TerminalHandler
 
 class FileSystemGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("File System Simulator")
         self.root.geometry("800x600")
-        
-        # Inisialisasi filesystem
-        self.current_dir = "/"
-        self.root_node = {
-            "name": "/",
-            "type": "directory",
-            "content": {},
-            "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        self.disk_size = 1024 * 1024  # 1MB virtual disk
-        self.used_space = 0
+
+        # Inisialisasi filesystem dan terminal handler
+        self.vfs = VirtualFileSystem()
+        self.terminal_handler = TerminalHandler(self.vfs, gui_callback=self.refresh_view)
         
         # Frame untuk path dan tombol
         self.top_frame = tk.Frame(self.root)
@@ -114,29 +108,29 @@ class FileSystemGUI:
         """Refresh the tree view with current directory contents"""
         self.tree.delete(*self.tree.get_children())
         
-        current_node = self.get_node_at_path(self.current_dir)
+        current_node = self.vfs.get_node_at_path(self.vfs.current_dir)
         if not current_node:
             messagebox.showerror("Error", "Invalid path")
-            self.current_dir = "/"
+            self.vfs.current_dir = "/"
             self.path_var.set("/")
-            current_node = self.root_node
+            current_node = self.vfs.root_node
         
         for name, item in current_node["content"].items():
             self.tree.insert("", "end", text=name, 
                             values=(item["type"], 
-                                   self.format_size(item.get("size", 0)), 
+                                   self.vfs.format_size(item.get("size", 0)), 
                                    item["created"], 
                                    item["modified"]))
         
-        self.status_var.set(f"Current directory: {self.current_dir} | Used space: {self.format_size(self.used_space)}/{self.format_size(self.disk_size)}")
+        self.status_var.set(f"Current directory: {self.vfs.current_dir} | Used space: {self.vfs.format_size(self.vfs.used_space)}/{self.vfs.format_size(self.vfs.disk_size)}")
     
     def get_node_at_path(self, path):
         """Get the node at the specified path"""
         if path == "/":
-            return self.root_node
+            return self.vfs.root_node
             
         parts = path.split('/')[1:]  # Remove empty first element
-        current = self.root_node
+        current = self.vfs.root_node
         
         for part in parts:
             if part not in current["content"]:
@@ -151,11 +145,11 @@ class FileSystemGUI:
         if not dir_name:
             return
             
-        if not self.is_valid_name(dir_name):
+        if not self.vfs.is_valid_name(dir_name):
             messagebox.showerror("Error", "Invalid directory name")
             return
             
-        parent_node = self.get_node_at_path(self.current_dir)
+        parent_node = self.get_node_at_path(self.vfs.current_dir)
         if not parent_node:
             messagebox.showerror("Error", "Invalid current directory")
             return
@@ -180,7 +174,7 @@ class FileSystemGUI:
         if not file_name:
             return
             
-        if not self.is_valid_name(file_name):
+        if not self.vfs.is_valid_name(file_name):
             messagebox.showerror("Error", "Invalid file name")
             return
             
@@ -188,11 +182,11 @@ class FileSystemGUI:
         if not file_size:
             return
             
-        if self.used_space + file_size > self.disk_size:
+        if self.vfs.used_space + file_size > self.vfs.disk_size:
             messagebox.showerror("Error", "Not enough disk space")
             return
             
-        parent_node = self.get_node_at_path(self.current_dir)
+        parent_node = self.get_node_at_path(self.vfs.current_dir)
         if not parent_node:
             messagebox.showerror("Error", "Invalid current directory")
             return
@@ -210,7 +204,7 @@ class FileSystemGUI:
             "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         parent_node["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.used_space += file_size
+        self.vfs.used_space += file_size
         self.refresh_view()
     
     def delete_item(self):
@@ -221,13 +215,13 @@ class FileSystemGUI:
             return
             
         item_name = self.tree.item(selected[0], "text")
-        item_path = os.path.join(self.current_dir, item_name)
+        item_path = os.path.join(self.vfs.current_dir, item_name)
         
         confirm = messagebox.askyesno("Confirm", f"Are you sure you want to delete '{item_name}'?")
         if not confirm:
             return
             
-        parent_node = self.get_node_at_path(self.current_dir)
+        parent_node = self.get_node_at_path(self.vfs.current_dir)
         if not parent_node or item_name not in parent_node["content"]:
             messagebox.showerror("Error", "Item not found")
             return
@@ -237,9 +231,9 @@ class FileSystemGUI:
         if item_node["type"] == "directory":
             # Calculate directory size recursively
             dir_size = self.calculate_size(item_node)
-            self.used_space -= dir_size
+            self.vfs.used_space -= dir_size
         else:
-            self.used_space -= item_node["size"]
+            self.vfs.used_space -= item_node["size"]
             
         del parent_node["content"][item_name]
         parent_node["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -258,11 +252,11 @@ class FileSystemGUI:
         if not new_name or new_name == old_name:
             return
             
-        if not self.is_valid_name(new_name):
+        if not self.vfs.is_valid_name(new_name):
             messagebox.showerror("Error", "Invalid name")
             return
             
-        parent_node = self.get_node_at_path(self.current_dir)
+        parent_node = self.get_node_at_path(self.vfs.current_dir)
         if not parent_node or old_name not in parent_node["content"]:
             messagebox.showerror("Error", "Item not found")
             return
@@ -293,7 +287,7 @@ class FileSystemGUI:
             messagebox.showwarning("Warning", "Can only view content of files")
             return
             
-        parent_node = self.get_node_at_path(self.current_dir)
+        parent_node = self.get_node_at_path(self.vfs.current_dir)
         if not parent_node or item_name not in parent_node["content"]:
             messagebox.showerror("Error", "File not found")
             return
@@ -319,16 +313,16 @@ class FileSystemGUI:
     
     def show_disk_info(self):
         """Show disk usage information"""
-        total = self.disk_size
-        used = self.used_space
+        total = self.vfs.disk_size
+        used = self.vfs.used_space
         free = total - used
         usage_percent = (used / total) * 100 if total > 0 else 0
         
         message = (
             f"Disk Information:\n\n"
-            f"Total space: {self.format_size(total)}\n"
-            f"Used space: {self.format_size(used)} ({usage_percent:.1f}%)\n"
-            f"Free space: {self.format_size(free)}"
+            f"Total space: {self.vfs.format_size(total)}\n"
+            f"Used space: {self.vfs.format_size(used)} ({usage_percent:.1f}%)\n"
+            f"Free space: {self.vfs.format_size(free)}"
         )
         messagebox.showinfo("Disk Information", message)
     
@@ -342,8 +336,8 @@ class FileSystemGUI:
         item_type = self.tree.item(item, "values")[0]
         
         if item_type == "directory":
-            new_path = os.path.join(self.current_dir, item_name)
-            self.current_dir = new_path
+            new_path = os.path.join(self.vfs.current_dir, item_name)
+            self.vfs.current_dir = new_path
             self.path_var.set(new_path)
             self.refresh_view()
     
@@ -354,11 +348,11 @@ class FileSystemGUI:
             new_path = "/" + new_path
             
         if self.get_node_at_path(new_path):
-            self.current_dir = new_path
+            self.vfs.current_dir = new_path
             self.refresh_view()
         else:
             messagebox.showerror("Error", "Invalid path")
-            self.path_var.set(self.current_dir)
+            self.path_var.set(self.vfs.current_dir)
     
     def calculate_size(self, node):
         """Calculate size of a directory recursively"""
@@ -391,131 +385,12 @@ class FileSystemGUI:
             return
         self.terminal_text.config(state=tk.NORMAL)
         self.terminal_text.insert(tk.END, f"$ {cmd}\n")
-        output = self.handle_terminal_command(cmd)
+        output = self.terminal_handler.handle_command(cmd)
         if output:
             self.terminal_text.insert(tk.END, output + "\n")
         self.terminal_text.see(tk.END)
         self.terminal_text.config(state=tk.DISABLED)
         self.terminal_entry.delete(0, tk.END)
-
-    def handle_terminal_command(self, cmd):
-        # Simple command parser for virtual FS
-        parts = cmd.split()
-        if not parts:
-            return ""
-        c = parts[0]
-        if c == "ls":
-            node = self.get_node_at_path(self.current_dir)
-            if not node:
-                return "Invalid path"
-            names = list(node["content"].keys())
-            return "  ".join(names) if names else "(empty)"
-        elif c == "pwd":
-            return self.current_dir
-        elif c == "cd":
-            if len(parts) < 2:
-                return "Usage: cd <dir>"
-            target = parts[1]
-            if target == "/":
-                new_path = "/"
-            elif target == "..":
-                if self.current_dir == "/":
-                    new_path = "/"
-                else:
-                    new_path = "/".join(self.current_dir.rstrip("/").split("/")[:-1])
-                    if not new_path:
-                        new_path = "/"
-            else:
-                if self.current_dir == "/":
-                    new_path = f"/{target}"
-                else:
-                    new_path = f"{self.current_dir}/{target}"
-            if self.get_node_at_path(new_path):
-                self.current_dir = new_path
-                self.path_var.set(new_path)
-                self.refresh_view()
-                return ""
-            else:
-                return f"Directory not found: {target}"
-        elif c == "help":
-            return "Commands: ls, cd <dir>, pwd, mkdir <dir>, rm <name>, cat <file>, touch <file>, help"
-        elif c == "mkdir":
-            if len(parts) < 2:
-                return "Usage: mkdir <dir>"
-            dir_name = parts[1]
-            if not self.is_valid_name(dir_name):
-                return "Invalid directory name"
-            parent_node = self.get_node_at_path(self.current_dir)
-            if not parent_node:
-                return "Invalid current directory"
-            if dir_name in parent_node["content"]:
-                return "Directory already exists"
-            parent_node["content"][dir_name] = {
-                "name": dir_name,
-                "type": "directory",
-                "content": {},
-                "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            parent_node["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.refresh_view()
-            return ""
-        elif c == "rm":
-            if len(parts) < 2:
-                return "Usage: rm <name>"
-            name = parts[1]
-            parent_node = self.get_node_at_path(self.current_dir)
-            if not parent_node or name not in parent_node["content"]:
-                return "Item not found"
-            item_node = parent_node["content"][name]
-            if item_node["type"] == "directory":
-                dir_size = self.calculate_size(item_node)
-                self.used_space -= dir_size
-            else:
-                self.used_space -= item_node["size"]
-            del parent_node["content"][name]
-            parent_node["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.refresh_view()
-            return ""
-        elif c == "cat":
-            if len(parts) < 2:
-                return "Usage: cat <file>"
-            name = parts[1]
-            parent_node = self.get_node_at_path(self.current_dir)
-            if not parent_node or name not in parent_node["content"]:
-                return "File not found"
-            item_node = parent_node["content"][name]
-            if item_node["type"] != "file":
-                return f"{name} is not a file"
-            return item_node["content"]
-        elif c == "touch":
-            if len(parts) < 2:
-                return "Usage: touch <file>"
-            file_name = parts[1]
-            if not self.is_valid_name(file_name):
-                return "Invalid file name"
-            parent_node = self.get_node_at_path(self.current_dir)
-            if not parent_node:
-                return "Invalid current directory"
-            if file_name in parent_node["content"]:
-                return "File already exists"
-            # Default file size 1 byte
-            if self.used_space + 1 > self.disk_size:
-                return "Not enough disk space"
-            parent_node["content"][file_name] = {
-                "name": file_name,
-                "type": "file",
-                "size": 1,
-                "content": f"This is content of file {file_name}",
-                "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "modified": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            parent_node["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.used_space += 1
-            self.refresh_view()
-            return ""
-        else:
-            return f"Unknown command: {c}"
 
 if __name__ == "__main__":
     root = tk.Tk()
