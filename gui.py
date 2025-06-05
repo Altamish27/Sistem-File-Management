@@ -256,7 +256,7 @@ class FileSystemGUI:
         elif cmd == "df":
             disk_info = self.fs.get_disk_info()
             usage = (disk_info['used'] / disk_info['total']) * 100 if disk_info['total'] > 0 else 0
-            self.write_to_termential(
+            self.write_to_terminal(
                 f"Filesystem      Size  Used  Avail Use%\n"
                 f"VirtualDisk   {self.fs.format_size(disk_info['total'])} "
                 f"{self.fs.format_size(disk_info['used'])} "
