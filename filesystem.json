@@ -1,0 +1,58 @@
+{
+  "root": {
+    "name": "/",
+    "type": "directory",
+    "content": {
+      "doc": {
+        "name": "doc",
+        "type": "directory",
+        "content": {
+          "fil.txt": {
+            "name": "fil.txt",
+            "type": "file",
+            "size": 1024,
+            "content": "Content of fil.txt",
+            "created": "2025-06-05 10:54:54",
+            "modified": "2025-06-05 10:54:54"
+          },
+          "ye": {
+            "name": "ye",
+            "type": "directory",
+            "content": {},
+            "created": "2025-06-05 10:55:10",
+            "modified": "2025-06-05 10:55:10"
+          },
+          "uuu": {
+            "name": "uuu",
+            "type": "directory",
+            "content": {},
+            "created": "2025-06-05 10:56:18",
+            "modified": "2025-06-05 10:56:18"
+          }
+        },
+        "created": "2025-06-05 10:54:14",
+        "modified": "2025-06-05 10:56:18"
+      },
+      "again": {
+        "name": "again",
+        "type": "directory",
+        "content": {
+          "tes.txt": {
+            "name": "tes.txt",
+            "type": "file",
+            "size": 1024,
+            "content": "Content of tes.txt",
+            "created": "2025-06-05 10:57:17",
+            "modified": "2025-06-05 10:57:17"
+          }
+        },
+        "created": "2025-06-05 10:54:31",
+        "modified": "2025-06-05 10:57:17"
+      }
+    },
+    "created": "2025-06-05 10:42:54",
+    "modified": "2025-06-05 10:54:31"
+  },
+  "used_space": 2048,
+  "current_dir": "/again"
+}
