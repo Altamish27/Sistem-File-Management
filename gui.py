@@ -1,15 +1,13 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
-from filesystem import FileSystem
-import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, simpledialog
-from filesystem import FileSystem
+from tkinter.font import Font
 import os
+from filesystem import FileSystem
 
 class FileSystemGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("File System Simulator with Terminal")
+        self.root.title("File System Simulator with Contiguous Allocation")
         self.root.geometry("1200x600")
         
         self.fs = FileSystem()
@@ -26,20 +24,122 @@ class FileSystemGUI:
         self.left_frame = tk.Frame(self.main_pane)
         self.main_pane.add(self.left_frame)
         
-        # Right pane - Terminal
+        # Right pane - Terminal and Allocation Info
         self.right_frame = tk.Frame(self.main_pane)
         self.main_pane.add(self.right_frame)
-        
-        # Configure pane sizes
-        self.main_pane.paneconfig(self.left_frame, width=700)
-        self.main_pane.paneconfig(self.right_frame, width=500)
         
         # Setup File Explorer (left pane)
         self.setup_file_explorer()
         
-        # Setup Terminal (right pane)
+        # Setup Right pane with Terminal and Allocation Info
+        self.setup_right_panel()
+        
+    def setup_right_panel(self):
+        # Notebook for tabs
+        self.notebook = ttk.Notebook(self.right_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Terminal tab
+        self.terminal_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.terminal_tab, text="Terminal")
         self.setup_terminal()
         
+        # Allocation Info tab
+        self.allocation_tab = tk.Frame(self.notebook)
+        self.notebook.add(self.allocation_tab, text="Allocation Info")
+        self.setup_allocation_info()
+        
+    def setup_allocation_info(self):
+        # Allocation visualization
+        self.canvas = tk.Canvas(self.allocation_tab, bg="white")
+        self.canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Disk usage info
+        self.disk_info_label = tk.Label(self.allocation_tab, anchor=tk.W)
+        self.disk_info_label.pack(fill=tk.X, padx=5)
+        
+        # File allocation details
+        self.allocation_text = scrolledtext.ScrolledText(
+            self.allocation_tab,
+            wrap=tk.WORD,
+            height=10,
+            state='disabled'
+        )
+        self.allocation_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Refresh button
+        tk.Button(
+            self.allocation_tab,
+            text="Refresh Allocation View",
+            command=self.update_allocation_view
+        ).pack(pady=5)
+        
+    def update_allocation_view(self):
+        """Update the allocation visualization"""
+        self.canvas.delete("all")
+        usage = self.fs.storage.get_disk_usage()
+        
+        # Display disk usage info
+        disk_info = (
+            f"Total: {usage['total_blocks']} blocks ({usage['total_bytes']/1024:.1f} KB) | "
+            f"Used: {usage['used_blocks']} blocks ({usage['used_bytes']/1024:.1f} KB) | "
+            f"Free: {usage['free_blocks']} blocks ({usage['free_bytes']/1024:.1f} KB)"
+        )
+        self.disk_info_label.config(text=disk_info)
+        
+        # Draw block visualization
+        canvas_width = self.canvas.winfo_width()
+        if canvas_width < 10:  # Handle initial small size
+            canvas_width = 500
+            
+        block_width = max(5, canvas_width // usage['total_blocks'])
+        
+        for i in range(usage['total_blocks']):
+            color = "red" if self.fs.storage.bitmap[i] else "green"
+            self.canvas.create_rectangle(
+                i * block_width, 20,
+                (i+1) * block_width, 50,
+                fill=color,
+                outline="black",
+                tags="block"
+            )
+            
+        # Show selected file allocation
+        selected = self.tree.selection()
+        if selected:
+            item_name = self.tree.item(selected[0], "text")
+            allocation_info = self.fs.show_allocation_info(item_name)
+            
+            if allocation_info:
+                info_text = (
+                    f"File: {allocation_info['file_name']}\n"
+                    f"Size: {allocation_info['size_bytes']} bytes\n"
+                    f"Blocks: {allocation_info['num_blocks']} "
+                    f"(#{allocation_info['start_block']}-#{allocation_info['start_block']+allocation_info['num_blocks']-1})\n"
+                    f"Location: bytes {allocation_info['start_byte']}-{allocation_info['end_byte']}"
+                )
+                
+                # Highlight allocated blocks
+                for i in range(allocation_info['start_block'], 
+                              allocation_info['start_block'] + allocation_info['num_blocks']):
+                    self.canvas.create_rectangle(
+                        i * block_width, 20,
+                        (i+1) * block_width, 50,
+                        outline="yellow",
+                        width=2,
+                        tags="highlight"
+                    )
+            else:
+                info_text = f"No allocation info for {item_name}"
+                
+            self.allocation_text.config(state='normal')
+            self.allocation_text.delete(1.0, tk.END)
+            self.allocation_text.insert(tk.END, info_text)
+            self.allocation_text.config(state='disabled')
+        
+        # Bind canvas resize
+        self.canvas.bind("<Configure>", lambda e: self.update_allocation_view())
+    
     def setup_file_explorer(self):
         # Top frame with path and buttons
         top_frame = tk.Frame(self.left_frame)
@@ -72,6 +172,7 @@ class FileSystemGUI:
         
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<Double-1>", self.on_double_click)
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
         
         # Scrollbar
         scrollbar = ttk.Scrollbar(self.tree, orient="vertical", command=self.tree.yview)
@@ -100,9 +201,35 @@ class FileSystemGUI:
         status_bar = tk.Label(self.left_frame, textvariable=self.status_var, bd=1, relief=tk.SUNKEN, anchor=tk.W)
         status_bar.pack(fill=tk.X)
     
+    def on_tree_select(self, event):
+        """Update allocation view when tree selection changes"""
+        self.update_allocation_view()
+    
+    def on_path_enter(self, event=None):
+        """Handle path entry or Go button"""
+        path = self.path_var.get()
+        success, message = self.fs.change_directory(path)
+        if success:
+            self.refresh_view()
+        else:
+            messagebox.showerror("Error", message)
+            self.path_var.set(self.fs.current_dir)
+    
+    def go_up(self):
+        """Go to parent directory"""
+        if self.fs.current_dir == "/":
+            return
+            
+        parent_dir = os.path.dirname(self.fs.current_dir)
+        success, message = self.fs.change_directory(parent_dir)
+        if success:
+            self.refresh_view()
+        else:
+            messagebox.showerror("Error", message)
+    
     def setup_terminal(self):
         # Terminal frame
-        terminal_frame = tk.Frame(self.right_frame, bd=2, relief=tk.SUNKEN)
+        terminal_frame = tk.Frame(self.terminal_tab, bd=2, relief=tk.SUNKEN)
         terminal_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Terminal output
@@ -112,7 +239,8 @@ class FileSystemGUI:
             state='disabled',
             bg='black',
             fg='white',
-            insertbackground='white'
+            insertbackground='white',
+            font=Font(family="Consolas", size=10)
         )
         self.terminal_output.pack(fill=tk.BOTH, expand=True)
         
@@ -120,13 +248,14 @@ class FileSystemGUI:
         input_frame = tk.Frame(terminal_frame)
         input_frame.pack(fill=tk.X, pady=(5,0))
         
-        tk.Label(input_frame, text="$").pack(side=tk.LEFT)
+        tk.Label(input_frame, text="$", fg="white", bg="black").pack(side=tk.LEFT)
         
         self.terminal_input = tk.Entry(
             input_frame,
             bg='black',
             fg='white',
-            insertbackground='white'
+            insertbackground='white',
+            font=Font(family="Consolas", size=10)
         )
         self.terminal_input.pack(fill=tk.X, expand=True, padx=5)
         self.terminal_input.bind("<Return>", self.execute_command)
@@ -134,7 +263,7 @@ class FileSystemGUI:
         # Terminal help label
         help_label = tk.Label(
             terminal_frame, 
-            text="Commands: ls, cd, mkdir, touch, rm, cp, mv, cat, df, clear",
+            text="Commands: ls, cd, mkdir, touch, rm, cp, mv, cat, df, clear, help",
             anchor=tk.W
         )
         help_label.pack(fill=tk.X)
@@ -146,6 +275,7 @@ class FileSystemGUI:
     def write_to_terminal(self, text, color="white"):
         """Write text to terminal output"""
         self.terminal_output.configure(state='normal')
+        self.terminal_output.tag_config(color, foreground=color)
         self.terminal_output.insert(tk.END, text, color)
         self.terminal_output.configure(state='disabled')
         self.terminal_output.see(tk.END)
@@ -214,9 +344,12 @@ class FileSystemGUI:
             if not args:
                 self.write_to_terminal("touch: missing operand\n", "red")
             else:
-                success, message = self.fs.create_file(args[0], 1024)
+                size = 1024  # Default size
+                if len(args) > 1 and args[1].isdigit():
+                    size = int(args[1])
+                success, message = self.fs.create_file(args[0], size)
                 if success:
-                    self.write_to_terminal(f"File '{args[0]}' created (1024 bytes)\n")
+                    self.write_to_terminal(f"File '{args[0]}' created ({size} bytes)\n")
                     self.refresh_view()
                 else:
                     self.write_to_terminal(f"touch: {message}\n", "red")
@@ -224,7 +357,7 @@ class FileSystemGUI:
             if not args:
                 self.write_to_terminal("rm: missing operand\n", "red")
             else:
-                success, message = self.fs.delete_item(args[0])
+                success, message = self.fs.delete_file(args[0])
                 if success:
                     self.write_to_terminal(f"Removed '{args[0]}'\n")
                     self.refresh_view()
@@ -255,17 +388,17 @@ class FileSystemGUI:
                     self.write_to_terminal(f"{content}\n")
         elif cmd == "df":
             disk_info = self.fs.get_disk_info()
-            usage = (disk_info['used'] / disk_info['total']) * 100 if disk_info['total'] > 0 else 0
+            usage = (disk_info['used_bytes'] / disk_info['total_bytes']) * 100 if disk_info['total_bytes'] > 0 else 0
             self.write_to_terminal(
                 f"Filesystem      Size  Used  Avail Use%\n"
-                f"VirtualDisk   {self.fs.format_size(disk_info['total'])} "
-                f"{self.fs.format_size(disk_info['used'])} "
-                f"{self.fs.format_size(disk_info['free'])} "
-                f"{usage:.0f}%\n"
+                f"VirtualDisk   {self.fs.format_size(disk_info['total_bytes'])} "
+                f"{self.fs.format_size(disk_info['used_bytes'])} "
+                f"{self.fs.format_size(disk_info['free_bytes'])} "
+                f"{int(usage)}%\n"
             )
         else:
             self.write_to_terminal(f"{cmd}: command not found\n", "red")
-        
+    
     def refresh_view(self):
         """Refresh the tree view with current directory contents"""
         self.tree.delete(*self.tree.get_children())
@@ -284,10 +417,28 @@ class FileSystemGUI:
         disk_info = self.fs.get_disk_info()
         self.status_var.set(
             f"Current directory: {self.fs.current_dir} | "
-            f"Used space: {self.fs.format_size(disk_info['used'])}/"
-            f"{self.fs.format_size(disk_info['total'])}"
+            f"Used space: {self.fs.format_size(disk_info['used_bytes'])}/"
+            f"{self.fs.format_size(disk_info['total_bytes'])}"
         )
+        self.update_allocation_view()
+    
+    def on_double_click(self, event):
+        """Handle double click on tree item"""
+        item = self.tree.identify_row(event.y)
+        if not item:
+            return
+            
+        item_name = self.tree.item(item, "text")
+        item_type = self.tree.item(item, "values")[0]
         
+        if item_type == 'directory':
+            new_path = os.path.join(self.fs.current_dir, item_name)
+            success, message = self.fs.change_directory(new_path)
+            if success:
+                self.refresh_view()
+            else:
+                messagebox.showerror("Error", message)
+    
     def create_directory(self):
         """Create a new directory"""
         dir_name = simpledialog.askstring("New Folder", "Enter folder name:")
@@ -324,9 +475,19 @@ class FileSystemGUI:
             return
             
         item_name = self.tree.item(selected[0], "text")
+        item_type = self.tree.item(selected[0], "values")[0]
         
-        if messagebox.askyesno("Confirm", f"Delete '{item_name}'?"):
-            success, message = self.fs.delete_item(item_name)
+        if item_type == 'directory':
+            confirm = messagebox.askyesno("Confirm", f"Delete directory '{item_name}' and all its contents?")
+        else:
+            confirm = messagebox.askyesno("Confirm", f"Delete file '{item_name}'?")
+            
+        if confirm:
+            if item_type == 'directory':
+                success, message = self.fs.delete_directory(item_name)
+            else:
+                success, message = self.fs.delete_file(item_name)
+                
             if success:
                 self.refresh_view()
             else:
@@ -386,6 +547,7 @@ class FileSystemGUI:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
+        
     def show_properties(self):
         """Show properties of selected item"""
         selected = self.tree.selection()
@@ -403,7 +565,7 @@ class FileSystemGUI:
             
         size = node.get('size', 0)
         if item_type == 'directory':
-            size = self.fs._calculate_size(node)
+            size = self.fs.storage.calculate_size(node)
             
         message = (
             f"Name: {item_name}\n"
@@ -416,13 +578,13 @@ class FileSystemGUI:
         
     def show_disk_info(self):
         """Show disk usage information"""
-        disk_info = self.fs.get_disk_info()
-        usage = (disk_info['used'] / disk_info['total']) * 100 if disk_info['total'] > 0 else 0
+        disk_info = self.fs.storage.get_disk_usage()
+        usage = (disk_info['used_bytes'] / disk_info['total_bytes']) * 100 if disk_info['total_bytes'] > 0 else 0
         
         message = (
-            f"Total space: {self.fs.format_size(disk_info['total'])}\n"
-            f"Used space: {self.fs.format_size(disk_info['used'])} ({usage:.1f}%)\n"
-            f"Free space: {self.fs.format_size(disk_info['free'])}"
+            f"Total space: {self.fs.format_size(disk_info['total_bytes'])}\n"
+            f"Used space: {self.fs.format_size(disk_info['used_bytes'])} ({usage:.1f}%)\n"
+            f"Free space: {self.fs.format_size(disk_info['free_bytes'])}"
         )
         messagebox.showinfo("Disk Information", message)
         

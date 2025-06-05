@@ -44,15 +44,50 @@
             "content": "Content of tes.txt",
             "created": "2025-06-05 10:57:17",
             "modified": "2025-06-05 10:57:17"
+          },
+          "g": {
+            "name": "g",
+            "type": "file",
+            "size": 1024,
+            "content": "Content of g",
+            "created": "2025-06-05 11:58:32",
+            "modified": "2025-06-05 11:58:32",
+            "allocation": [
+              2,
+              2
+            ]
+          },
+          "kdhfk": {
+            "name": "kdhfk",
+            "type": "file",
+            "size": 1024,
+            "content": "Content of kdhfk",
+            "created": "2025-06-05 11:58:36",
+            "modified": "2025-06-05 11:58:36",
+            "allocation": [
+              4,
+              2
+            ]
+          },
+          "alkhf": {
+            "name": "alkhf",
+            "type": "file",
+            "size": 1024,
+            "content": "Content of alkhf",
+            "created": "2025-06-05 11:58:38",
+            "modified": "2025-06-05 11:58:38",
+            "allocation": [
+              6,
+              2
+            ]
           }
         },
         "created": "2025-06-05 10:54:31",
-        "modified": "2025-06-05 10:57:17"
+        "modified": "2025-06-05 11:59:10"
       }
     },
     "created": "2025-06-05 10:42:54",
     "modified": "2025-06-05 10:54:31"
   },
-  "used_space": 2048,
   "current_dir": "/again"
 }
