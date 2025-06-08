@@ -1,11 +1,11 @@
 {
   "bitmap": [
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
     0,
     0,
     0,
@@ -2049,18 +2049,5 @@
     0,
     0
   ],
-  "file_allocation_table": {
-    "/again\\kdhfk": [
-      4,
-      2
-    ],
-    "/again\\file4.txt": [
-      0,
-      2
-    ],
-    "/again\\teszkjkj.txt": [
-      2,
-      2
-    ]
-  }
+  "file_allocation_table": {}
 }
