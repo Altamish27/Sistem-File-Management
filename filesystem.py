@@ -45,6 +45,9 @@ class FileSystem:
         if path is None:
             path = self.current_dir
             
+        # Normalize path with forward slashes
+        path = path.replace("\\", "/")
+            
         if path == "/":
             return self.root
             
@@ -52,6 +55,9 @@ class FileSystem:
         current = self.root
         
         for part in parts:
+            if not part:  # Skip empty parts (happens with '//' in path)
+                continue
+                
             if part not in current["content"]:
                 return None
             current = current["content"][part]
@@ -86,9 +92,20 @@ class FileSystem:
             
         if file_name in parent["content"]:
             return False, "File already exists"
-            
-        file_path = os.path.join(parent_path if parent_path else self.current_dir, file_name)
         
+        # Construct the file path with forward slashes
+        if parent_path:
+            parent_path = parent_path.replace("\\", "/")
+            file_path = parent_path
+            if not file_path.endswith("/"):
+                file_path += "/"
+            file_path += file_name
+        else:
+            file_path = self.current_dir
+            if not file_path.endswith("/"):
+                file_path += "/"
+            file_path += file_name
+            
         # Allocate storage space
         allocation = self.storage.allocate_file(file_path, size)
         if not allocation:
@@ -115,8 +132,20 @@ class FileSystem:
             
         if parent["content"][file_name]["type"] != "file":
             return False, "Not a file"
+        
+        # Construct the file path with forward slashes
+        if parent_path:
+            parent_path = parent_path.replace("\\", "/")
+            file_path = parent_path
+            if not file_path.endswith("/"):
+                file_path += "/"
+            file_path += file_name
+        else:
+            file_path = self.current_dir
+            if not file_path.endswith("/"):
+                file_path += "/"
+            file_path += file_name
             
-        file_path = os.path.join(parent_path if parent_path else self.current_dir, file_name)
         self.storage.deallocate_file(file_path)
         del parent["content"][file_name]
         parent["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -151,10 +180,21 @@ class FileSystem:
         
     def change_directory(self, path):
         """Change current directory"""
+        # Normalize path with forward slashes
+        path = path.replace("\\", "/")
+        
         if path.startswith("/"):
             new_path = path
         else:
-            new_path = os.path.join(self.current_dir, path)
+            # Join path with forward slashes
+            if self.current_dir.endswith("/"):
+                new_path = self.current_dir + path
+            else:
+                new_path = self.current_dir + "/" + path
+                
+        # Clean path from double slashes
+        while "//" in new_path:
+            new_path = new_path.replace("//", "/")
             
         if self.get_node_at_path(new_path):
             self.current_dir = new_path
@@ -164,6 +204,10 @@ class FileSystem:
         
     def get_directory_contents(self, path=None):
         """Get contents of a directory"""
+        if path:
+            # Normalize path with forward slashes
+            path = path.replace("\\", "/")
+            
         node = self.get_node_at_path(path) if path else self.get_node_at_path()
         if not node or node["type"] != "directory":
             return None
@@ -172,6 +216,10 @@ class FileSystem:
         
     def get_file_content(self, file_name, parent_path=None):
         """Get content of a file"""
+        if parent_path:
+            # Normalize path with forward slashes
+            parent_path = parent_path.replace("\\", "/")
+            
         parent = self.get_node_at_path(parent_path) if parent_path else self.get_node_at_path()
         if not parent or file_name not in parent["content"]:
             return None
@@ -186,6 +234,10 @@ class FileSystem:
         """Rename a file or directory"""
         if not self.is_valid_name(new_name):
             return False, "Invalid name"
+        
+        if parent_path:
+            # Normalize path with forward slashes
+            parent_path = parent_path.replace("\\", "/")
             
         parent = self.get_node_at_path(parent_path) if parent_path else self.get_node_at_path()
         if not parent or old_name not in parent["content"]:
@@ -201,8 +253,16 @@ class FileSystem:
         
         # Update storage allocation if it's a file
         if parent["content"][new_name]["type"] == "file":
-            old_path = os.path.join(parent_path if parent_path else self.current_dir, old_name)
-            new_path = os.path.join(parent_path if parent_path else self.current_dir, new_name)
+            # Construct paths with forward slashes
+            if parent_path:
+                parent_path_norm = parent_path.replace("\\", "/")
+                old_path = parent_path_norm + ("/" if not parent_path_norm.endswith("/") else "") + old_name
+                new_path = parent_path_norm + ("/" if not parent_path_norm.endswith("/") else "") + new_name
+            else:
+                current_dir_norm = self.current_dir.replace("\\", "/")
+                old_path = current_dir_norm + ("/" if not current_dir_norm.endswith("/") else "") + old_name
+                new_path = current_dir_norm + ("/" if not current_dir_norm.endswith("/") else "") + new_name
+                
             if old_path in self.storage.file_allocation_table:
                 allocation = self.storage.file_allocation_table.pop(old_path)
                 self.storage.file_allocation_table[new_path] = allocation
