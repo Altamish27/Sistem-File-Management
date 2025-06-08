@@ -290,3 +290,49 @@ class FileSystem:
     def get_disk_info(self):
         """Get disk usage information"""
         return self.storage.get_disk_usage()
+        
+    def delete_directory(self, dir_name, parent_path=None):
+        """Delete a directory and all its contents recursively"""
+        parent = self.get_node_at_path(parent_path) if parent_path else self.get_node_at_path()
+        if not parent or dir_name not in parent["content"]:
+            return False, "Directory not found"
+            
+        if parent["content"][dir_name]["type"] != "directory":
+            return False, "Not a directory"
+            
+        # Get the full path to the directory
+        if parent_path:
+            parent_path = parent_path.replace("\\", "/")
+            dir_path = parent_path
+            if not dir_path.endswith("/"):
+                dir_path += "/"
+            dir_path += dir_name
+        else:
+            dir_path = self.current_dir
+            if not dir_path.endswith("/"):
+                dir_path += "/"
+            dir_path += dir_name
+        
+        # Recursively delete all files in the directory
+        self._delete_directory_contents(parent["content"][dir_name], dir_path)
+        
+        # Delete the directory itself
+        del parent["content"][dir_name]
+        parent["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.save_filesystem()
+        return True, "Directory deleted"
+        
+    def _delete_directory_contents(self, dir_node, dir_path):
+        """Recursively delete all contents of a directory"""
+        for name, item in list(dir_node["content"].items()):
+            item_path = dir_path + "/" + name
+            # Clean path from double slashes
+            while "//" in item_path:
+                item_path = item_path.replace("//", "/")
+                
+            if item["type"] == "file":
+                # Deallocate file storage
+                self.storage.deallocate_file(item_path)
+            elif item["type"] == "directory":
+                # Recursively delete subdirectory contents
+                self._delete_directory_contents(item, item_path)

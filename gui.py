@@ -498,8 +498,7 @@ class FileSystemGUI:
             return
             
         success, message = self.fs.create_file(file_name, file_size)
-        if success:
-            self.refresh_view()
+        if success:            self.refresh_view()
         else:
             messagebox.showerror("Error", message)
             
@@ -513,7 +512,23 @@ class FileSystemGUI:
         item_name = self.tree.item(selected[0], "text")
         item_type = self.tree.item(selected[0], "values")[0]
         
+        # Check if trying to delete a directory that's currently open
         if item_type == 'directory':
+            # Build full path to selected directory
+            full_path = self.fs.current_dir
+            if not full_path.endswith("/"):
+                full_path += "/"
+            full_path += item_name
+            
+            # Normalize paths for comparison
+            norm_full_path = full_path.replace("\\", "/")
+            norm_current_dir = self.fs.current_dir.replace("\\", "/")
+            
+            # Check if user is in the directory they're trying to delete
+            if norm_current_dir.startswith(norm_full_path):
+                messagebox.showerror("Error", "Cannot delete the directory you are currently in. Please navigate to a different directory first.")
+                return
+                
             confirm = messagebox.askyesno("Confirm", f"Delete directory '{item_name}' and all its contents?")
         else:
             confirm = messagebox.askyesno("Confirm", f"Delete file '{item_name}'?")
