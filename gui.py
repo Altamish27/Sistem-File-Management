@@ -313,18 +313,54 @@ class FileSystemGUI:
         elif cmd == "clear":
             self.terminal_output.configure(state='normal')
             self.terminal_output.delete(1.0, tk.END)
-            self.terminal_output.configure(state='disabled')
+            self.terminal_output.configure(state='disabled')        
         elif cmd == "ls":
+            # Get path from arguments or use current directory
             path = args[0] if args else self.fs.current_dir
+            
+            # Normalize the path for consistency
+            path = path.replace("\\", "/")
+            
+            # Handle relative paths properly
+            if not path.startswith("/"):
+                # If path is relative, join it with current directory
+                if self.fs.current_dir.endswith("/"):
+                    path = self.fs.current_dir + path
+                else:
+                    path = self.fs.current_dir + "/" + path
+                    
+            # Clean path from double slashes
+            while "//" in path:
+                path = path.replace("//", "/")
+                
             contents = self.fs.get_directory_contents(path)
             if contents is None:
                 self.write_to_terminal(f"ls: cannot access '{path}': No such file or directory\n", "red")
             else:
+                self.write_to_terminal(f"Contents of {path}:\n")
                 for name, item in contents.items():
-                    self.write_to_terminal(f"{name}/\n" if item['type'] == 'directory' else f"{name}\n")
+                    self.write_to_terminal(f"{name}/\n" if item['type'] == 'directory' else f"{name}\n")        
         elif cmd == "cd":
             path = args[0] if args else "/"
-            success, message = self.fs.change_directory(path)
+            
+            # Special case for ".." to go up one directory
+            if path == "..":
+                if self.fs.current_dir == "/":
+                    # Already at root, do nothing
+                    self.write_to_terminal("Already at root directory\n")
+                    return
+                # Get parent directory by removing the last segment
+                path_parts = self.fs.current_dir.rstrip('/').split('/')
+                if len(path_parts) > 1:
+                    parent_dir = '/'.join(path_parts[:-1])
+                    if not parent_dir:
+                        parent_dir = "/"
+                else:
+                    parent_dir = "/"
+                success, message = self.fs.change_directory(parent_dir)
+            else:
+                success, message = self.fs.change_directory(path)
+                
             if success:
                 self.write_to_terminal(f"Changed directory to {self.fs.current_dir}\n")
                 self.refresh_view()

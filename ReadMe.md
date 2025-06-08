@@ -64,6 +64,7 @@ Kekurangan:
 Terminal mendukung perintah berikut:
 - `ls [path]` - Menampilkan isi direktori
 - `cd [path]` - Berpindah direktori
+- `cd ..` - Berpindah ke direktori induk
 - `mkdir <dir>` - Membuat direktori baru
 - `touch <file>` - Membuat file baru
 - `rm <path>` - Menghapus file atau direktori
